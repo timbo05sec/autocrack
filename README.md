@@ -1,5 +1,7 @@
 # autocrack
+# AUTOCRACK.py
 This python script is a Hashcat (https://hashcat.net) wrapper to help automate the cracking process.  The script includes multiple functions to select a set of wordlists and rules, as well as the ability to run a bruteforce attack, with custom masks, before the wordlist/rule attacks.
+*_Be sure to set the path variables at the beginning of the script._*
 
 ```
 usage: autocrack.py [-h] [-b {1,2,3,4,5,6,7,8}] [-bm BRUTEMASK]
