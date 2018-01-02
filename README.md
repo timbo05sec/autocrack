@@ -56,5 +56,7 @@ optional arguments:
 
 To Do:
  - Add function to one-step AD domain hash dumps (lm -> nt)
+ - Add custom character sets
  - Include mask attacks
  - Track which wordlists / rules / masks crack a password
+ - Implement Markov chaining
