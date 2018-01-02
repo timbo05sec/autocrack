@@ -1,7 +1,8 @@
 # autocrack
 This python script is a Hashcat (https://hashcat.net) wrapper to help automate the cracking process.  The script includes multiple functions to select a set of wordlists and rules, as well as the ability to run a bruteforce attack, with custom masks, before the wordlist/rule attacks.
 
-```usage: autocrack.py [-h] [-b {1,2,3,4,5,6,7,8}] [-bm BRUTEMASK]
+```
+usage: autocrack.py [-h] [-b {1,2,3,4,5,6,7,8}] [-bm BRUTEMASK]
                     [-cr CUSTOMRULES] [-cw CUSTOMWL] [-f] [-i INPUTFILE]
                     [-l LOGFILE] [-lh [LISTHASHMODE]] [-lw {all,small,custom}]
                     [-m HASHMODE] [-p] [-pu] [-r {all,simple,singles,combos}]
@@ -50,7 +51,8 @@ optional arguments:
                         the -ws option to specify the maximum file size
   -ws WORDLISTSIZE, --wordlistsize WORDLISTSIZE
                         Filter wordlists to files of a maximum number of
-                        lines; Default = 500,000; 0 = all wordlists```
+                        lines; Default = 500,000; 0 = all wordlists
+  ```
 
 To Do:
  - Add function to one-step AD domain hash dumps (lm -> nt)
