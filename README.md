@@ -1,6 +1,8 @@
 # AUTOCRACK.py
 This python script is a Hashcat (https://hashcat.net) wrapper to help automate the cracking process.  The script includes multiple functions to select a set of wordlists and rules, as well as the ability to run a bruteforce attack, with custom masks, before the wordlist/rule attacks.
 
+Autocrack uses Python 3, which is usually installed already in various Linux distributions.  To install Python 3 in OS X, follow the instructions here: http://docs.python-guide.org/en/latest/starting/install3/osx/.
+
 *_Be sure to set the path variables at the beginning of the script._*
 
 ```
