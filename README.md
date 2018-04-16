@@ -6,7 +6,7 @@ Autocrack uses Python 3, which is usually installed already in various Linux dis
 *_Be sure to set the path variables at the beginning of the script._*
 
 ```
-usage: autocrack.py [-h] [-b {1,2,3,4,5,6,7,8}] [-bm BRUTEMASK]
+usage: autocrack.py [-h] [-b NUM] [-bm BRUTEMASK]
                     [-cr CUSTOMRULES] [-cw CUSTOMWL] [-f] [-i INPUTFILE]
                     [-l LOGFILE] [-lh [LISTHASHMODE]] [-lw {all,small,custom}]
                     [-m HASHMODE] [-p] [-pu] [-r {all,simple,singles,combos}]
@@ -15,8 +15,7 @@ usage: autocrack.py [-h] [-b {1,2,3,4,5,6,7,8}] [-bm BRUTEMASK]
 
 optional arguments:
   -h, --help            show this help message and exit
-  -b {1,2,3,4,5,6,7,8}, --brute {1,2,3,4,5,6,7,8}
-                        Start cracking with brute force. Specify max length (1-8)
+  -b NUM, --brute NUM   Start cracking with brute force. Specify max length (1-55)
   -bm BRUTEMASK, --brutemask BRUTEMASK
                         Character types to brute force (?a, ?u, ?l, ?s, ?d);
                         If only one type is specified, all positions will be
@@ -50,6 +49,9 @@ optional arguments:
                         Filters the wordlists to only include file names that
                         contain the keyword
   -u, --username        Pass the username parameter to Hashcat
+  -v {0,1,2}, --verbose {0,1,2}
+                        Specify a verbosity level: 0: Informational, 1:
+                        Verbose, 2: Include Hashcat Output
   -w {all,small,custom}, --wordlists {all,small,custom}
                         Specify which set of wordlists to use; "custom" uses
                         the -ws option to specify the maximum file size
@@ -60,6 +62,7 @@ optional arguments:
 
 To Do:
  - Add function to one-step AD domain hash dumps (lm -> nt)
+ - Add support for custom mask charsets
  - Add custom character sets
  - Include mask attacks
  - Track which wordlists / rules / masks crack a password
