@@ -11,6 +11,7 @@
 ###
 ###     v1.0.0  Timothy McKenzie  01-01-2018
 ###     v1.0.1  Timothy McKenzie  01-18-2018
+###     v1.0.2  Timothy McKenzie  04-16-2018
 ###############################################################################
 
 import sys
@@ -22,11 +23,13 @@ import termios
 import tty
 import pty
 import collections
+import copy
 from time import sleep
-from subprocess import Popen
+from subprocess import Popen, check_output
 from threading  import Thread
 from queue import Queue, Empty
 
+VERBOSITY=0
 ### Path Variables
 # Path in which the wordlists, rules, and masks directories reside; usually the same folder in which the hashcat executable resides.
 # Be sure to include the "/" at the end of the path.
@@ -48,18 +51,35 @@ ALLSINGLERULES = ['nsa64.rule','leetspeakv2.rule','hob064.rule','combinator.rule
 # The list of rules that are run with the "-r simple" option
 SIMPLERULES = ['nsa64.rule','leetspeakv2.rule','hob064.rule','combinator.rule','best64.rule','specific.rule','T0XlC-insert_space_and_special_0_F.rule','InsidePro-PasswordsPro.rule','T0XlC-insert_top_100_passwords_1_G.rule','Ninja-leetspeak.rule']
 
-def checkDone(output):
+def output(intLevel, strMessage):
+    # intLevel is the severity level of the message being passed to the output function
+    global VERBOSITY
+    if intLevel == 0:
+        print('{}'.format(strMessage))
+    elif intLevel == 1 and VERBOSITY >= 1:
+        print('\nVERBOSE MESSAGE: {}\n'.format(strMessage))
+    elif intLevel == VERBOSITY == 2:
+        print('{}'.format(strMessage), end='')
+
+def checkDone(strOutput):
     doneStatus = False
     doneStatements = ['All hashes found in potfile!', 'No hashes loaded']
-    doneReMatch = re.findall(r'Recovered.*?\(([0-9]{3}\.00%)', output)
+    doneReMatch = re.findall(r'Recovered.*?\(([0-9]{3}\.00%)', strOutput)
     if len(doneReMatch) > 0:
         if doneReMatch[-1] == '100.00%':
             doneStatus = True
-    if any(searchStr in output for searchStr in doneStatements):
+    if any(searchStr in strOutput for searchStr in doneStatements):
         doneStatus = True
-    if re.search(r'Status.*?Quit', output) != None:
+    if re.search(r'Status.*?Quit', strOutput) != None:
         doneStatus = True
     return doneStatus
+
+def checkWhatsCracked(hashcatFlags):
+    hashcatCMD = [BASEEXEPATH + BASECOMMAND]
+    hashcatCMD += hashcatFlags
+    strCracked = check_output(' '.join(hashcatCMD), shell=True)
+    if strCracked:
+        output(0, 'Hashes Cracked:\n'+strCracked.decode()) 
 
 
 def callHashcat(hashcatFlags, logfile, currentStatus):
@@ -89,9 +109,10 @@ def callHashcat(hashcatFlags, logfile, currentStatus):
             elif master_fd in r:
                 o = os.read(master_fd, 10240)
                 if o:
-                    os.write(sys.stdout.fileno(), o)
+                    output(2, o.decode())
+                    #os.write(sys.stdout.fileno(), o)
                     sessionLog += o.decode()
-        if logfile != None:
+        if logfile:
             f = open(logfile, 'a')
             f.write(sessionLog)
             f.close()
@@ -99,7 +120,7 @@ def callHashcat(hashcatFlags, logfile, currentStatus):
         if checkDone(sessionLog):
             exitStatus = 'Done'
         # restore tty settings back
-        os.write(sys.stdout.fileno(), ('\r\nReturn Code: '+str(p.returncode)+'\r\n<DONE>\r\n').encode('utf-8'))
+        output(1, '\r\nReturn Code: '+str(p.returncode)+'\r\n<DONE>\r\n')
         os.close(master_fd)
         os.close(slave_fd)
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_tty)
@@ -135,7 +156,7 @@ def buildCommand(passedArgs):
         hashcatArgs = [['-w', '3', '-m', passedArgs.hashmode, passedArgs.inputfile], '']
         if passedArgs.force:
             hashcatArgs[0].insert(0, '--force')
-        if passedArgs.brute != None and (passedArgs.brute <= 8 and passedArgs.brute >=1):
+        if passedArgs.brute != None and (passedArgs.brute <= 55 and passedArgs.brute >=1):
             hashcatArgs[1] = 'Brute'
             if re.search(r'[b-ce-km-rtv-z]', passedArgs.brutemask) == None:
                 for newArg in ['--increment-max='+str(passedArgs.brute), '--increment-min=1', '-i', '3', '-a']:
@@ -143,38 +164,44 @@ def buildCommand(passedArgs):
                 if len(passedArgs.brutemask) == 2 and re.search(r'\?[adlsu]', passedArgs.brutemask) != None:
                     hashcatArgs[0].append(passedArgs.brutemask*passedArgs.brute)
                 else:
-                    maskPos = 0
-                    tempMask = ''
-# Change the following loop to use the enumerate function
-                    while maskPos <= (len(passedArgs.brutemask) - 1):
-                        if re.search(r'\?[adlsu]', passedArgs.brutemask[maskPos:maskPos+2]) != None:
-                            tempMask.extend(passedArgs.brutemask[maskPos:maskPos+2])
-                            maskPos += 2
+                    if len(passedArgs.brutemask)/2 == passedArgs.brute:
+                        maskPos = 0
+                        tempMask = ''
+                        while maskPos <= (len(passedArgs.brutemask) - 1):
+                            if re.search(r'\?[adlsu]', passedArgs.brutemask[maskPos:maskPos+2]) != None:
+                                tempMask += passedArgs.brutemask[maskPos:maskPos+2]
+                                maskPos += 2
+                            else:
+                                break
+                        if tempMask == passedArgs.brutemask:
+                            hashcatArgs[0].append(passedArgs.brutemask)
                         else:
-                            print('Invalid mask.  Exiting...\r\n')
+                            output(0, 'Invalid mask.  Exiting...\r\n')
                             hashcatArgs = [['GetHelp'], 'Done']
-                            break
-                    if tempMask == passedArgs.brutemask:
-                        hashcatArgs[0].append(passedArgs.brutemask)
                     else:
-                        print('Invalid mask.  Exiting...\r\n')
+                        output(0, 'Invalid mask.  Exiting...\r\n')
                         hashcatArgs = [['GetHelp'], 'Done']
             else:
+                output(0, 'Invalid mask.  Exiting...\r\n')
                 hashcatArgs = [['GetHelp'], 'Done']
         elif passedArgs.wordlists != None and passedArgs.wordlists[0] != []:
             hashcatArgs[1] = 'Wordlist'
             hashcatArgs[0].append(passedArgs.wordlists[0][0])
+            strCrackStatus = 'Cracking with {} wordlist'.format(passedArgs.wordlists[0][0])
             if passedArgs.wordlists[1] == 'Done':
                 if passedArgs.rules != None and passedArgs.rules != []:
                     if isinstance(passedArgs.rules[0], collections.Sequence) and not isinstance(passedArgs.rules[0], str):
                         for eachRule in passedArgs.rules[0]:
                             hashcatArgs[0].append('-r')
                             hashcatArgs[0].append(BASESUPPORTFILESPATH+'rules/'+eachRule)
+                            strCrackStatus += ' and {} rule'.format(eachRule)
                     else:
                         hashcatArgs[0].append('-r')                      
                         hashcatArgs[0].append(BASESUPPORTFILESPATH+'rules/'+passedArgs.rules[0])
+                        strCrackStatus += ' and {} rule'.format(passedArgs.rules[0])
                 else:
                     hashcatArgs = [[None], 'Done']
+            output(0, strCrackStatus)
         else:
             hashcatArgs = [[None], 'Done']
     else:
@@ -240,14 +267,15 @@ def findWordlists(intMaxLines,wlfilter):
 
 def main():
     # Setup some variables
+    global VERBOSITY
     exitCode = 'Continue'
     masterRules = []
     masterWordlist = [[], 'Continue']
     # Collect and verify the commandline arguments
     argParser=argparse.ArgumentParser()
-    argParser.add_argument('-b', '--brute', type=int, choices=range(1,9), help='Start cracking with brute force. Specify max length (1-8)')
+    argParser.add_argument('-b', '--brute', type=int, choices=range(1,56), metavar='NUM', help='Incremental mask-based brute force. Specify max length (1-55)')
     argParser.add_argument('-bm', '--brutemask', default='?a', 
-        help='Character types to brute force (?a, ?u, ?l, ?s, ?d); If only one type is specified, all positions will be brute forced with that character type')
+        help='Character types to brute force (?a, ?u, ?l, ?s, ?d); If only one type is specified, all positions will be brute forced with that character type; Else, one type must be specified for each position (i.e. -b 3 -bm ?u?d?s)')
     argParser.add_argument('-cr', '--customrules', help='Comma separated list of rules to run; rules are run in the order of left to right')
     argParser.add_argument('-cw', '--customwl', help='Comma separated list of the full path to one or more wordlists')
     argParser.add_argument('-f', '--force', action='store_true', help='Pass the force parameter to Hashcat')
@@ -263,39 +291,42 @@ def main():
     argParser.add_argument('-s', '--show', action='store_true', help='Display cracked credentials')
     argParser.add_argument('-t', '--wlfilter', help='Filters the wordlists to only include file names that contain the keyword')
     argParser.add_argument('-u', '--username', action='store_true', help='Pass the username parameter to Hashcat')
+    argParser.add_argument('-v', '--verbose', type=int, help='Specify a verbosity level: 0: Informational, 1: Verbose, 2: Include Hashcat Output', choices=range(0,3), default=0)
     argParser.add_argument('-w', '--wordlists', choices=['all','small','custom'], 
         help='Specify which set of wordlists to use; "custom" uses the -ws option to specify the maximum file size')
     argParser.add_argument('-ws', '--wordlistsize', type=int, default=500000, help='Filter wordlists to files of a maximum number of lines; Default = 500,000; 0 = all wordlists')
     args = argParser.parse_args()
+    output(1, "Arguments passed to Autocrack"+str(args))
+    VERBOSITY = args.verbose
     # Handle the wordlist argument
-    if args.wordlists != None or args.listwordlists != None:
+    if args.wordlists or args.listwordlists:
         if args.wordlists == 'custom' or args.listwordlists == 'custom':
             if args.wordlistsize == 0:
-                print('Finding all wordlists in path %s...' % (BASESUPPORTFILESPATH+'wordlists/'))
+                output(0, 'Finding all wordlists in path %s...' % (BASESUPPORTFILESPATH+'wordlists/'))
                 masterWordlist[0] = findWordlists(0,args.wlfilter)
-            elif args.wordlistszize > 0:
-                print('This may take a few minutes.  Finding wordlists with %d or fewer lines in path %s...' % (args.wordlistsize,BASESUPPORTFILESPATH+'wordlists/'))
+            elif args.wordlistsize > 0:
+                output(0, 'This may take a few minutes.  Finding wordlists with %d or fewer lines in path %s...' % (args.wordlistsize,BASESUPPORTFILESPATH+'wordlists/'))
                 masterWordlist[0] = findWordlists(args.wordlistsize,args.wlfilter)
             else:
-                print('Invalid wordlist size.  Skipping wordlists.')
+                output(0, 'Invalid wordlist size.  Skipping wordlists.')
                 args.wordlists = None
         elif args.wordlists == 'small' or args.listwordlists == 'small':
-            print('Finding wordlists with %d or fewer lines in path %s...' % (500000,BASESUPPORTFILESPATH+'wordlists/'))
+            output(0, 'Finding wordlists with %d or fewer lines in path %s...' % (500000,BASESUPPORTFILESPATH+'wordlists/'))
             masterWordlist[0] = findWordlists(500000,args.wlfilter)
         elif args.wordlists == 'all' or args.listwordlists == 'all':
-            print('Finding all wordlists in path %s...' % (BASESUPPORTFILESPATH+'wordlists/'))
+            output(0, 'Finding all wordlists in path %s...' % (BASESUPPORTFILESPATH+'wordlists/'))
             masterWordlist[0] = findWordlists(0,args.wlfilter)
-        if masterWordlist[0] != []:
-            print('The following wordlists matched the specified criteria:')
+        if masterWordlist[0]:
+            output(0, 'The following wordlists matched the specified criteria:')
             for eachPath in masterWordlist[0]:
-                print('%s' % eachPath)
-        if args.listwordlists != None:
-            exitCode = 'Done'
+                output(0, '%s' % eachPath)
+            if args.wordlists == None and args.listwordlists:
+                exitCode = 'Done'
         else:
-            print('No wordlists matched the specified criteria.  No wordlist or rules attacks will be run.')
+            output(0, 'No wordlists matched the specified criteria.  No wordlist or rules attacks will be run.')
             args.wordlists = None
     # Handle the rules argument
-    if args.rules != None:
+    if args.rules:
         if args.rules == 'all':
             masterRules.extend(ALLSINGLERULES)
             masterRules.extend(COMBORULES)
@@ -306,21 +337,20 @@ def main():
         elif args.rules == 'combos':
             masterRules.extend(COMBORULES)
     # Convert to List and handle custom rules
-    if args.customrules != None and args.customrules != '':
+    if args.customrules:
         args.customrules = customArgToList(args.customrules)
         masterRules.extend(args.customrules)
     # Convert to List and handle custom wordlists
-    if args.customwl != None and args.customwl != '':
+    if args.customwl:
         args.customwl = customArgToList(args.customwl)
         masterWordlist[0] = args.customwl + masterWordlist[0]
     args.rules = list(masterRules)
-    print(args.rules)
+    output(1, 'Rules to be applied to each wordlist\n'+str(args.rules))
     args.wordlists = [eachWL[:] for eachWL in masterWordlist]
-    print(args)
     # Loop through all the work specified
     while exitCode != 'Done':
         hashcatFlags, exitCode = buildCommand(args)
-        if hashcatFlags != [] and hashcatFlags[0] == 'GetHelp':
+        if hashcatFlags and hashcatFlags[0] == 'GetHelp':
             argParser.print_help()
             break
         if exitCode == 'Brute':
@@ -332,17 +362,21 @@ def main():
                     args.wordlists = [eachWL[:] for eachWL in masterWordlist]
                     args.wordlists[1] = 'Done'
             elif args.wordlists[1] == 'Done':
-                if args.rules != None and args.rules != []:
+                if args.rules:
                     args.rules.pop(0)
                     if args.rules == []:
                         args.wordlists[0].pop(0)
-                        if args.wordlists[0] != []:
+                        if args.wordlists[0]:
                             args.rules = list(masterRules)
-        print(hashcatFlags)
+        output(1, "Flags passed to this iteration of Hashcat"+str(hashcatFlags))
         if hashcatFlags != [None]:
             exitCode = callHashcat(hashcatFlags, args.logfile, exitCode)
+            wcArgs = copy.deepcopy(args)
+            wcArgs.show = True
+            wchcFlags, wcExitCode = buildCommand(wcArgs) 
+            checkWhatsCracked(wchcFlags)
         else:
-            print('Nothing else to do.  Exiting...')
+            output(0, 'Nothing else to do.  Exiting...')
 
 
 if __name__=='__main__':
