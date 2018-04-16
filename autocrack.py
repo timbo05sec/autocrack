@@ -163,6 +163,7 @@ def buildCommand(passedArgs):
                     hashcatArgs[0].insert(0, newArg)
                 if len(passedArgs.brutemask) == 2 and re.search(r'\?[adlsu]', passedArgs.brutemask) != None:
                     hashcatArgs[0].append(passedArgs.brutemask*passedArgs.brute)
+                    output(0, 'Cracking with {} character set through brute force.'.format(passedArgs.brutemask*passedArgs.brute))
                 else:
                     if len(passedArgs.brutemask)/2 == passedArgs.brute:
                         maskPos = 0
@@ -175,6 +176,7 @@ def buildCommand(passedArgs):
                                 break
                         if tempMask == passedArgs.brutemask:
                             hashcatArgs[0].append(passedArgs.brutemask)
+                            output(0, 'Cracking with {} character set through brute force.'.format(passedArgs.brutemask))
                         else:
                             output(0, 'Invalid mask.  Exiting...\r\n')
                             hashcatArgs = [['GetHelp'], 'Done']
